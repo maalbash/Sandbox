@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+
 struct sandbox {
   pid_t child;
   const char *progname;
@@ -23,14 +24,103 @@ struct sandb_syscall {
   void (*callback)(struct sandbox*, struct user_regs_struct *regs);
 };
 
+void writeHandler(struct sandbox* sandb, struct user_regs_struct *regs){
+  char *fdpath;
+  char *filepath;
+  int size;
+  //printf("write 1\n");
+  sprintf(fdpath,"/proc/%u/fd/%llu",sandb->child,regs->rdi);
+  size = readlink(fdpath, filepath, 256);  //this gives the filepath for a particular fd
+  if(size != -1)
+  {
+    filepath[size] = '\0';
+    printf("WROTE ON File-%s-\n", filepath);
+  }
+  else
+    printf("WRITE HANDLER ERROR: %s\n", strerror(errno));
+  //return -EACCES;
+}
+
+void readHandler(struct sandbox* sandb, struct user_regs_struct *regs){
+  //printf("read0\n");
+  char *fdpath, *filepath;
+  int size;
+  sprintf(fdpath,"/proc/%u/fd/%llu",sandb->child,regs->rdi);
+  size = readlink(fdpath, filepath, 512);
+  if(size = -1)
+    printf("READ HANDLER ERROR : %s\n", strerror(errno));
+  else
+  {
+    filepath[size] = '\0';
+    printf("READ File-%s-\n", filepath);
+  }
+  
+  // char *val = malloc(4096);
+  // int allocated = 4096;
+  // int read = 0;
+  // unsigned long tmp;
+  // while (1) {
+  //     if (read + sizeof tmp > allocated) {
+  //         allocated *= 2;
+  //         val = realloc(val, allocated);
+  //     }
+  //     tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+  //     if(errno != 0) {
+  //         val[read] = 0;
+  //         printf("READ HANDLER ERROR: %s\n",strerror(errno));
+  //         break;
+  //     }
+  //     memcpy(val + read, &tmp, sizeof tmp);
+  //     if (memchr(&tmp, 0, sizeof tmp) != NULL)
+  //         break;
+  //     read += sizeof tmp;
+  // }
+
+
+  //return -EACCES;
+}
+
+void openHandler(struct sandbox* sandb, struct user_regs_struct *regs){
+  //printf("open  2\n");
+  
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("OPEN HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL)
+          break;
+      read += sizeof tmp;
+  }
+
+  //val[read] = '\0';
+  printf("OPENED: %s\n", val);
+
+
+
+  //printf("%d\n%llu\n",buf,regs->);
+  //return -EACCES;
+}
+
 struct sandb_syscall sandb_syscalls[] = {
-  {__NR_read,            NULL},
-  {__NR_write,           NULL},
+  {__NR_read,            readHandler},
+  {__NR_write,           writeHandler},
   {__NR_exit,            NULL},
   {__NR_brk,             NULL},
   {__NR_mmap,            NULL},
   {__NR_access,          NULL},
-  {__NR_open,            NULL},
+  {__NR_open,            openHandler},
   {__NR_fstat,           NULL},
   {__NR_close,           NULL},
   {__NR_mprotect,        NULL},
@@ -39,6 +129,8 @@ struct sandb_syscall sandb_syscalls[] = {
   {__NR_exit_group,      NULL},
   {__NR_getdents,        NULL},
 };
+
+
 
 void sandb_kill(struct sandbox *sandb) {
   kill(sandb->child, SIGKILL);
@@ -54,7 +146,9 @@ void sandb_handle_syscall(struct sandbox *sandb) {
     err(EXIT_FAILURE, "[SANDBOX] Failed to PTRACE_GETREGS:");
 
   for(i = 0; i < sizeof(sandb_syscalls)/sizeof(*sandb_syscalls); i++) {
+     //printf("%llu!\n",regs.orig_rax);
     if(regs.orig_rax == sandb_syscalls[i].syscall) {
+      //printf("Got here! %llu!\n",regs.orig_rax);
       if(sandb_syscalls[i].callback != NULL)
         sandb_syscalls[i].callback(sandb, &regs);
       return;
@@ -63,10 +157,10 @@ void sandb_handle_syscall(struct sandbox *sandb) {
 
   if(regs.orig_rax == -1) {
     printf("[SANDBOX] Segfault ?! KILLING !!!\n");
-  } else {
-    printf("[SANDBOX] Trying to use devil syscall (%llu) ?!? KILLING !!!\n", regs.orig_rax);
-  }
-  sandb_kill(sandb);
+  } //else {
+  //    printf("[SANDBOX] Trying to use devil syscall (%llu) ?!? KILLING !!!\n", regs.orig_rax);
+  // }
+  //sandb_kill(sandb);
 }
 
 void sandb_init(struct sandbox *sandb, int argc, char **argv) {
@@ -82,7 +176,7 @@ void sandb_init(struct sandbox *sandb, int argc, char **argv) {
     if(ptrace(PTRACE_TRACEME, 0, NULL, NULL) < 0)
       err(EXIT_FAILURE, "[SANDBOX] Failed to PTRACE_TRACEME:");
 
-    if(execv(argv[0], argv) < 0)
+    if(execvp(argv[0], argv) < 0)
       err(EXIT_FAILURE, "[SANDBOX] Failed to execv:");
 
   } else {
@@ -97,7 +191,7 @@ void sandb_run(struct sandbox *sandb) {
 
   if(ptrace(PTRACE_SYSCALL, sandb->child, NULL, NULL) < 0) {
     if(errno == ESRCH) {
-      waitpid(sandb->child, &status, __WALL | WNOHANG);
+      waitpid(sandb->child, &status, __WALL | WNOHANG); //I don't get these options.
       sandb_kill(sandb);
     } else {
       err(EXIT_FAILURE, "[SANDBOX] Failed to PTRACE_SYSCALL:");
