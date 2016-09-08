@@ -25,8 +25,8 @@ struct sandb_syscall {
 };
 
 void writeHandler(struct sandbox* sandb, struct user_regs_struct *regs){
-  char *fdpath;
-  char *filepath;
+  char fdpath[256];
+  char filepath[256];
   int size;
   //printf("write 1\n");
   sprintf(fdpath,"/proc/%u/fd/%llu",sandb->child,regs->rdi);
@@ -43,16 +43,18 @@ void writeHandler(struct sandbox* sandb, struct user_regs_struct *regs){
 
 void readHandler(struct sandbox* sandb, struct user_regs_struct *regs){
   //printf("read0\n");
-  char *fdpath, *filepath;
+  char fdpath[256], filepath[256];
   int size;
   sprintf(fdpath,"/proc/%u/fd/%llu",sandb->child,regs->rdi);
   size = readlink(fdpath, filepath, 512);
-  if(size = -1)
-    printf("READ HANDLER ERROR : %s\n", strerror(errno));
-  else
+  if(size != -1)
   {
     filepath[size] = '\0';
     printf("READ File-%s-\n", filepath);
+  }
+  else
+  {
+    printf("READ HANDLER ERROR : %s\n", strerror(errno));
   }
   
   // char *val = malloc(4096);
