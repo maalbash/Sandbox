@@ -1,4 +1,5 @@
 #include <sys/ptrace.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -12,7 +13,14 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <fnmatch.h>
+#include <fcntl.h>
 
+typedef struct{
+char path[256];
+int size;
+int permit[3];
+}Line;
 
 struct sandbox {
   pid_t child;
@@ -23,6 +31,54 @@ struct sandb_syscall {
   int syscall;
   void (*callback)(struct sandbox*, struct user_regs_struct *regs);
 };
+
+Line* parseConfigFile(char *name, Line *oneLine)
+{
+  int n = 0;
+  int i = 3;
+  int j = 0;
+  oneLine = (Line*)malloc(sizeof(Line));
+  //oneLine[0] = (Line*)malloc(sizeof(Line));
+  FILE *fp = fopen(name,"r");
+  char buf[4096];
+  //read a line
+  while(fgets(buf,sizeof(buf),fp)){
+    oneLine[n].permit[0] = buf[0] - '0';//character to int character - '0'
+    oneLine[n].permit[1] = buf[1] - '0';
+    oneLine[n].permit[2] = buf[2] - '0';
+    while(buf[i] == ' '){
+      i++;
+    }
+    j = i;
+    while((buf[i] != '\n') && (buf[i] != '\0')/*(i < strlen(buf))*/) 
+    {
+      oneLine[n].path[i-j] = buf[i];
+      i++;
+    }
+    i = 3;
+    j = 0;
+    n++;
+    oneLine = realloc(oneLine,(n+1)*sizeof(Line));
+  }
+  oneLine[0].size = n;
+  return oneLine; 
+}
+
+int* pathcmp(char *sysCallPath, Line *oneLine){
+  int *permissions = (int*)malloc(sizeof(int)*3);
+  int i = 0;
+  for(i = 0; i < oneLine[0].size; i++)
+  {
+    if(fnmatch(oneLine[i].path, sysCallPath, FNM_PATHNAME) == 0)
+    {
+      permissions[0] = oneLine[i].permit[0];
+      permissions[1] = oneLine[i].permit[1];
+      permissions[2] = oneLine[i].permit[2];
+    }
+  }
+  return permissions;
+}
+
 
 void writeHandler(struct sandbox* sandb, struct user_regs_struct *regs){
   char fdpath[256];
@@ -56,35 +112,11 @@ void readHandler(struct sandbox* sandb, struct user_regs_struct *regs){
   {
     printf("READ HANDLER ERROR : %s\n", strerror(errno));
   }
-  
-  // char *val = malloc(4096);
-  // int allocated = 4096;
-  // int read = 0;
-  // unsigned long tmp;
-  // while (1) {
-  //     if (read + sizeof tmp > allocated) {
-  //         allocated *= 2;
-  //         val = realloc(val, allocated);
-  //     }
-  //     tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
-  //     if(errno != 0) {
-  //         val[read] = 0;
-  //         printf("READ HANDLER ERROR: %s\n",strerror(errno));
-  //         break;
-  //     }
-  //     memcpy(val + read, &tmp, sizeof tmp);
-  //     if (memchr(&tmp, 0, sizeof tmp) != NULL)
-  //         break;
-  //     read += sizeof tmp;
-  // }
-
-
   //return -EACCES;
 }
 
 void openHandler(struct sandbox* sandb, struct user_regs_struct *regs){
-  //printf("open  2\n");
-  
+
   char *val = malloc(4096);
   int allocated = 4096;
   int read = 0;
@@ -101,17 +133,17 @@ void openHandler(struct sandbox* sandb, struct user_regs_struct *regs){
           break;
       }
       memcpy(val + read, &tmp, sizeof tmp);
-      if (memchr(&tmp, 0, sizeof tmp) != NULL)
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
           break;
+        }
       read += sizeof tmp;
   }
-
-  //val[read] = '\0';
   printf("OPENED: %s\n", val);
 
-
-
-  //printf("%d\n%llu\n",buf,regs->);
   //return -EACCES;
 }
 
@@ -148,9 +180,7 @@ void sandb_handle_syscall(struct sandbox *sandb) {
     err(EXIT_FAILURE, "[SANDBOX] Failed to PTRACE_GETREGS:");
 
   for(i = 0; i < sizeof(sandb_syscalls)/sizeof(*sandb_syscalls); i++) {
-     //printf("%llu!\n",regs.orig_rax);
     if(regs.orig_rax == sandb_syscalls[i].syscall) {
-      //printf("Got here! %llu!\n",regs.orig_rax);
       if(sandb_syscalls[i].callback != NULL)
         sandb_syscalls[i].callback(sandb, &regs);
       return;
@@ -213,6 +243,8 @@ void sandb_run(struct sandbox *sandb) {
 int main(int argc, char **argv) {
   struct sandbox sandb;
 
+  Line *commands = parseConfigFile("config",commands);
+  
   if(argc < 2) {
     errx(EXIT_FAILURE, "[SANDBOX] Usage : %s <elf> [<arg1...>]", argv[0]);
   }
@@ -223,5 +255,6 @@ int main(int argc, char **argv) {
     sandb_run(&sandb);
   }
 
-  return EXIT_SUCCESS;
+  free(commands);
+  // return EXIT_SUCCESS;
 }
