@@ -1,3 +1,4 @@
-100  /home/maalbash/OS/Assignments/First/a.txt
-111 		 /home/maalbash/SE/token
-101  /home/maalbash/OS/Assignments/First/b.txt
+001  /home/maalbash/OS/Assignments/First/OS1/a.txt
+111  /home/maalbash/SE/token
+000  /home/maalbash/OS/Assignments/First/OS1
+110	 /home/maalbash/OS/Assignments/First/OS1/test2

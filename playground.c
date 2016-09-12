@@ -1,28 +1,29 @@
-#include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/user.h>
-#include <sys/reg.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/syscall.h>   /* For SYS_write etc */
-#include <glob.h>
-#include <errno.h>
-#include <string.h>
+// #include <sys/ptrace.h>
+// #include <sys/types.h>
+// #include <sys/wait.h>
+// #include <unistd.h>
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <sys/user.h>
+// #include <sys/reg.h>
+// #include <fcntl.h>
+// #include <sys/stat.h>
+// #include <sys/syscall.h>   /* For SYS_write etc */
+// #include <glob.h>
+// #include <errno.h>
+// #include <string.h>
+// #include <limits.h>
 
-//char* myname;
+// //char* myname;
 
-// int globerr(const char *path, int eerrno)
-// {
-// 	fprintf(stderr, "%s: %s\n", path, strerror(eerrno));
-// 	return 0;	/* let glob() keep going */
-// }
+// // int globerr(const char *path, int eerrno)
+// // {
+// // 	fprintf(stderr, "%s: %s\n", path, strerror(eerrno));
+// // 	return 0;	/* let glob() keep going */
+// // }
 
- int main(int argc, char** argv)
- { 
+//  int main(int argc, char** argv)
+//  { 
 // 	int i;
 // 	int flags = 0;
 // 	glob_t results;
@@ -50,16 +51,24 @@
 // }
   // printf("%lu\n",sizeof(long));
   // return 0;
-  int a = open("a.txt", O_WRONLY | O_CREAT, S_IRWXU);
-  char *buf = "bash";
-  char *buff;
-  if(a < 0)
-  	perror("error: ");
-  int b = write(a, buf, sizeof(buf));
-  if(b < 0)
- 	 perror("my error: ");
-  int c = read(a, buff, sizeof(buf));
-
+  // int a = open("a.txt", O_WRONLY | O_CREAT, S_IRWXU);
+  // char *buf = "bash";
+  // char *buff;
+  // if(a < 0)
+  // 	perror("open error: ");
+  // int b = write(a, buf, sizeof(buf));
+  // if(b < 0)
+ 	//  perror("write error: ");
+  // int c = read(a, buff, sizeof(buf));
+  // char buffer[PATH_MAX + 1]; /* not sure about the "+ 1" */
+  // char *res = realpath("a.txt", buffer);
+  // if (res) {
+  //     //printf("a.txt is at %s.\n", buffer);
+  //   return 0;
+  // } else {
+  //     perror("realpath");
+  //     exit(EXIT_FAILURE);
+  // }
 
 
  //	pid_t child;
@@ -118,5 +127,26 @@
 //                    child, NULL, NULL);
 //        }
 //     }
-    return 0;
+//     return 0;
+// }
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int
+main(int argc, char *argv[])
+{
+  char *newargv[] = { NULL, "hello", "world", NULL };
+  char *newenviron[] = { NULL };
+
+  if (argc != 2)
+  {
+    fprintf(stderr, "Usage: %s <file-to-exec>\n", argv[0]);
+    exit(EXIT_FAILURE);
+  }
+  newargv[0] = argv[1];
+
+  execve(argv[1], newargv, newenviron);
+  perror("execve"); /* execve() only returns on error */
+  exit(EXIT_FAILURE);
 }
