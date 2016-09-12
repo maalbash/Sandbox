@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <fnmatch.h>
 #include <fcntl.h>
+#include <errno.h>
 
 typedef struct{
 char path[256];
@@ -40,13 +41,17 @@ Line* parseConfigFile(char *name, Line *oneLine)
   oneLine = (Line*)malloc(sizeof(Line));
   //oneLine[0] = (Line*)malloc(sizeof(Line));
   FILE *fp = fopen(name,"r");
+  if(fp == NULL){
+    printf("Couldn't find the config file: %s\n", strerror(errno));
+    return NULL;
+  }
   char buf[4096];
   //read a line
   while(fgets(buf,sizeof(buf),fp)){
     oneLine[n].permit[0] = buf[0] - '0';//character to int character - '0'
     oneLine[n].permit[1] = buf[1] - '0';
     oneLine[n].permit[2] = buf[2] - '0';
-    while(buf[i] == ' '){
+    while((buf[i] == ' ') || (buf[i] == '\t')){
       i++;
     }
     j = i;
@@ -90,7 +95,7 @@ void writeHandler(struct sandbox* sandb, struct user_regs_struct *regs){
   if(size != -1)
   {
     filepath[size] = '\0';
-    printf("WROTE ON File-%s-\n", filepath);
+    printf("WROTE ON File: %s\n", filepath);
   }
   else
     printf("WRITE HANDLER ERROR: %s\n", strerror(errno));
@@ -106,7 +111,7 @@ void readHandler(struct sandbox* sandb, struct user_regs_struct *regs){
   if(size != -1)
   {
     filepath[size] = '\0';
-    printf("READ File-%s-\n", filepath);
+    printf("READ File: %s\n", filepath);
   }
   else
   {
@@ -147,21 +152,20 @@ void openHandler(struct sandbox* sandb, struct user_regs_struct *regs){
   //return -EACCES;
 }
 
+void execHandler(struct sandbox* sandb, struct user_regs_struct *regs){
+  printf("execve call\n");
+}
+
+void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs){
+  printf("openat call\n");
+}
+
 struct sandb_syscall sandb_syscalls[] = {
   {__NR_read,            readHandler},
   {__NR_write,           writeHandler},
-  {__NR_exit,            NULL},
-  {__NR_brk,             NULL},
-  {__NR_mmap,            NULL},
-  {__NR_access,          NULL},
+  {__NR_execve,          execHandler},
   {__NR_open,            openHandler},
-  {__NR_fstat,           NULL},
-  {__NR_close,           NULL},
-  {__NR_mprotect,        NULL},
-  {__NR_munmap,          NULL},
-  {__NR_arch_prctl,      NULL},
-  {__NR_exit_group,      NULL},
-  {__NR_getdents,        NULL},
+  {__NR_openat,          openatHandler},
 };
 
 
@@ -242,9 +246,12 @@ void sandb_run(struct sandbox *sandb) {
 
 int main(int argc, char **argv) {
   struct sandbox sandb;
-
+  int i;
   Line *commands = parseConfigFile("config",commands);
   
+
+  // for(i = 0; i<commands[0].size;i++)
+  //   printf("%s\n", commands[i].path);
   if(argc < 2) {
     errx(EXIT_FAILURE, "[SANDBOX] Usage : %s <elf> [<arg1...>]", argv[0]);
   }
