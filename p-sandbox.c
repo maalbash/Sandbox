@@ -34,9 +34,10 @@ struct sandb_syscall {
   void (*callback)(struct sandbox*, struct user_regs_struct *regs, Line* oneLine);
 };
 
-//Line *commands; //Global for ease of access
 
-void sandb_kill(struct sandbox*);
+
+//void sandb_kill(struct sandbox*);
+
 Line* parseConfigFile(char *name, Line *oneLine)
 {
   int n = 0;
@@ -92,6 +93,50 @@ int* pathcmp(char *sysCallPath, Line *oneLine){
   return permissions;
 }
 
+void mkdirHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
+  //source : https://github.com/nelhage/ministrace/blob/master/ministrace.c
+  char buffer[PATH_MAX + 1];
+  char *res;
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  int *x;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("OPEN HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+  buffer[strlen(buffer)-strlen(val)] = '\0';
+  
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if(x[3] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend mkdir not allowed: %s\n", strerror(errno));
+    }
+  }
+}
 
 void writeHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
   //source : http://stackoverflow.com/questions/33431994/extracting-system-call-name-and-arguments-using-ptrace
@@ -196,36 +241,48 @@ void openHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *one
 }
 
 void execHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
-  printf("execve call %llu %llu %llu %llu\n",regs->rax, regs->rdi, regs->rsi, regs->rdx);
-  // char buffer[PATH_MAX + 1];
-  // char *res;
-  // char *val = malloc(4096);
-  // int allocated = 4096;
-  // int read = 0;
-  // unsigned long tmp;
-  // int *x;
-  // while (1) {
-  //     if (read + sizeof tmp > allocated) {
-  //         allocated *= 2;
-  //         val = realloc(val, allocated);
-  //     }
-  //     tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rsi + read);
-  //     if(errno != 0) {
-  //         val[read] = 0;
-  //         printf("EXECVE HANDLER ERROR: %s\n",strerror(errno));
-  //         break;
-  //     }
-  //     memcpy(val + read, &tmp, sizeof tmp);
-  //     if (memchr(&tmp, 0, sizeof tmp) != NULL){
-  //         if(read == 0)
-  //           val[sizeof(tmp)] = '\0';
-  //         else
-  //           val[read] = '\0';
-  //         break;
-  //       }
-  //     read += sizeof tmp;
-  // }
-  // printf("%s\n", val);
+  //printf("execve call %llu %llu %llu %llu\n",regs->rax, regs->rdi, regs->rsi, regs->rdx);
+  char buffer[PATH_MAX + 1];
+  char *res;
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  int *x;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("EXECVE HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if(x[3] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend execute not allowed: %s\n", strerror(errno));
+    }
+  }
+  //printf("EXECVE: %s\n", buffer);
 }
 
 void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
@@ -270,7 +327,7 @@ void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *o
       {
         kill(sandb->child, SIGKILL);
         errno = EACCES;
-        fprintf(stderr,"  fend read not allowed: %s\n", strerror(errno));
+        fprintf(stderr,"fend read not allowed: %s\n", strerror(errno));
       }
     }
     if((regs->rdx & O_WRONLY) == O_WRONLY)
@@ -279,7 +336,7 @@ void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *o
       {
         kill(sandb->child, SIGKILL);
         errno = EACCES;
-        fprintf(stderr,"  fend write not allowed: %s\n", strerror(errno));
+        fprintf(stderr,"fend write not allowed: %s\n", strerror(errno));
       }
     }
     if((regs->rdx & O_RDWR) == O_RDWR)
@@ -297,7 +354,7 @@ void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *o
 
 struct sandb_syscall sandb_syscalls[] = {
   //{__NR_read,            readHandler},
-  //{__NR_write,           writeHandler},
+  {__NR_mkdir,           mkdirHandler},
   {__NR_execve,          execHandler},
   {__NR_open,            openHandler},
   {__NR_openat,          openatHandler},
@@ -378,17 +435,32 @@ void sandb_run(struct sandbox *sandb, Line *oneLine) {
 
 int main(int argc, char **argv) {
   struct sandbox sandb;
-  int i;
-  Line *commands = parseConfigFile("config",commands);
+  Line *commands;
+
+  if((argc < 2) || (argc == 3) || (argc > 4)) {
+    errx(EXIT_FAILURE, "[SANDBOX] Usage : %s [-c configuration_file] <command> [args]", argv[0]);
+  }
+  
+  if(argc == 4)
+  {
+    if(strcmp(argv[1],"-c") != 0)
+      errx(EXIT_FAILURE, "%s command not recognized. [SANDBOX] Usage : %s [-c configuration_file] <command> [args]", argv[1],argv[0]);
+    commands = parseConfigFile(argv[2],commands);
+    sandb_init(&sandb, argc-3, argv+3);
+  }
+  else
+  {
+    commands = (Line*)malloc(sizeof(Line));
+    commands[0].size = 0;
+    commands[0].path[0] = '\0';
+    commands[0].permit[0] = 1;
+    commands[0].permit[1] = 1;
+    commands[0].permit[2] = 1;
+    sandb_init(&sandb, argc-1, argv+1);
+  }
   
 
-   // for(i = 0; i<commands[0].size;i++)
-   //   printf("%d %d %d\n", commands[i].permit[0],commands[i].permit[1],commands[i].permit[2]);
-  if(argc < 2) {
-    errx(EXIT_FAILURE, "[SANDBOX] Usage : %s <elf> [<arg1...>]", argv[0]);
-  }
-
-  sandb_init(&sandb, argc-1, argv+1);
+  
 
   for(;;) {
     sandb_run(&sandb, commands);

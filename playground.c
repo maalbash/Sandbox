@@ -136,17 +136,17 @@
 int
 main(int argc, char *argv[])
 {
-  char *newargv[] = { NULL, "hello", "world", NULL };
-  char *newenviron[] = { NULL };
+  // char *newargv[] = { NULL, "hello", "world", NULL };
+  // char *newenviron[] = { NULL };
 
-  if (argc != 2)
-  {
-    fprintf(stderr, "Usage: %s <file-to-exec>\n", argv[0]);
-    exit(EXIT_FAILURE);
-  }
-  newargv[0] = argv[1];
+  // if (argc != 2)
+  // {
+  //   fprintf(stderr, "Usage: %s <file-to-exec>\n", argv[0]);
+  //   exit(EXIT_FAILURE);
+  // }
+  // newargv[0] = argv[1];
 
-  execve(argv[1], newargv, newenviron);
+  execv(argv[2], argv+1);
   perror("execve"); /* execve() only returns on error */
   exit(EXIT_FAILURE);
 }
