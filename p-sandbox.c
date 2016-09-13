@@ -130,12 +130,6 @@ void linkHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *one
       errno = EACCES;
       fprintf(stderr,"fend stopped (link) because (execute) is not allowed: %s\n", strerror(errno));
     }
-    if(oldx[2] == 0)
-    {
-      kill(sandb->child, SIGKILL);
-      errno = EACCES;
-      fprintf(stderr,"fend stopped (link) because (write) is not allowed: %s\n", strerror(errno));
-    }
   }
   char buffer[PATH_MAX + 1];
   char *res;
@@ -175,6 +169,12 @@ void linkHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *one
       kill(sandb->child, SIGKILL);
       errno = EACCES;
       fprintf(stderr,"fend stopped (link) because (write) is not allowed: %s\n", strerror(errno));
+    }
+    if(x[3] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (link) because (execute) is not allowed: %s\n", strerror(errno));
     }
   }
 }
