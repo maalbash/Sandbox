@@ -34,10 +34,6 @@ struct sandb_syscall {
   void (*callback)(struct sandbox*, struct user_regs_struct *regs, Line* oneLine);
 };
 
-
-
-//void sandb_kill(struct sandbox*);
-
 Line* parseConfigFile(char *name, Line *oneLine)
 {
   int n = 0;
@@ -93,7 +89,224 @@ int* pathcmp(char *sysCallPath, Line *oneLine){
   return permissions;
 }
 
-void mkdirHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
+void linkHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
+  
+  char oldbuffer[PATH_MAX + 1];
+  char *oldres;
+  char *oldval = malloc(4096);
+  int oldallocated = 4096;
+  int oldread = 0;
+  unsigned long oldtmp;
+  int *oldx;
+  while (1) {
+      if (oldread + sizeof oldtmp > oldallocated) {
+          oldallocated *= 2;
+          oldval = realloc(oldval, oldallocated);
+      }
+      oldtmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + oldread);
+      if(errno != 0) {
+          oldval[oldread] = 0;
+          printf("link HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(oldval + oldread, &oldtmp, sizeof oldtmp);
+      if (memchr(&oldtmp, 0, sizeof oldtmp) != NULL){
+          if(oldread == 0)
+            oldval[sizeof(oldtmp)] = '\0';
+          else
+            oldval[oldread] = '\0';
+          break;
+        }
+      oldread += sizeof oldtmp;
+  }
+  oldres = realpath(oldval,oldbuffer);
+  oldbuffer[strlen(oldbuffer)-strlen(oldval)] = '\0';
+  oldx = pathcmp( oldbuffer, oneLine);
+  if(oldx[0] == 1)
+  {
+    if(oldx[3] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (link) because (execute) is not allowed: %s\n", strerror(errno));
+    }
+    if(oldx[2] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (link) because (write) is not allowed: %s\n", strerror(errno));
+    }
+  }
+  char buffer[PATH_MAX + 1];
+  char *res;
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  int *x;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rsi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("link HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if(x[2] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (link) because (write) is not allowed: %s\n", strerror(errno));
+    }
+  }
+}
+
+void unlinkHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
+  
+  char buffer[PATH_MAX + 1];
+  char *res;
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  int *x;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("unlink HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+  buffer[strlen(buffer)-strlen(val)] = '\0';
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if(x[2] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (unlink) because (write) is not allowed: %s\n", strerror(errno));
+    }
+  }
+}
+
+void renameHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
+  
+  char buffer[PATH_MAX + 1];
+  char *res;
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  int *x;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("rename HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+  buffer[strlen(buffer)-strlen(val)] = '\0';
+
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if(x[2] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (rename) because (write) is not allowed: %s\n", strerror(errno));
+      return;
+    }
+  }
+  read = 0;
+  allocated = 4096;
+  val = realloc(val, 4096);
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rsi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("rename HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+  buffer[strlen(buffer)-strlen(val)] = '\0';
+
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if(x[2] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (rename) because (write) is not allowed: %s\n", strerror(errno));
+    }
+  }
+}
+
+void accessHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
   //source : https://github.com/nelhage/ministrace/blob/master/ministrace.c
   char buffer[PATH_MAX + 1];
   char *res;
@@ -110,7 +323,116 @@ void mkdirHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *on
       tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
       if(errno != 0) {
           val[read] = 0;
-          printf("OPEN HANDLER ERROR: %s\n",strerror(errno));
+          printf("access HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+  
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if((regs->rsi & R_OK) == R_OK)
+    {
+      if(x[1] == 0)
+      {
+        kill(sandb->child, SIGKILL);
+        errno = EACCES;
+        fprintf(stderr,"fend stopped (access) because (read) is not allowed: %s\n", strerror(errno));
+      }
+    }
+    if((regs->rsi & W_OK) == W_OK)
+    {
+      if(x[2] == 0)
+      {
+        kill(sandb->child, SIGKILL);
+        errno = EACCES;
+        fprintf(stderr,"fend stopped (access) because (write) is not allowed: %s\n", strerror(errno));
+      }
+    }
+    if((regs->rsi & X_OK) == X_OK)
+    {
+      if(x[3] == 0) 
+      {
+        kill(sandb->child, SIGKILL);
+        errno = EACCES;
+        fprintf(stderr,"fend stopped (access) because (execute) is not allowed: %s\n", strerror(errno));
+      }
+    }
+  }
+}
+
+void chdirHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
+  //source : https://github.com/nelhage/ministrace/blob/master/ministrace.c
+  char buffer[PATH_MAX + 1];
+  char *res;
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  int *x;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("chdir HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+  
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if(x[3] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (chdir) because (execute) is not allowed: %s\n", strerror(errno));
+    }
+  }
+}
+
+void rmdirHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
+  //source : https://github.com/nelhage/ministrace/blob/master/ministrace.c
+  char buffer[PATH_MAX + 1];
+  char *res;
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  int *x;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("rmdir HANDLER ERROR: %s\n",strerror(errno));
           break;
       }
       memcpy(val + read, &tmp, sizeof tmp);
@@ -133,7 +455,52 @@ void mkdirHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *on
     {
       kill(sandb->child, SIGKILL);
       errno = EACCES;
-      fprintf(stderr,"fend mkdir not allowed: %s\n", strerror(errno));
+      fprintf(stderr,"fend stopped (rmdir) because (execute) is not allowed: %s\n", strerror(errno));
+    }
+  }
+}
+
+void mkdirHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
+  //source : https://github.com/nelhage/ministrace/blob/master/ministrace.c
+  char buffer[PATH_MAX + 1];
+  char *res;
+  char *val = malloc(4096);
+  int allocated = 4096;
+  int read = 0;
+  unsigned long tmp;
+  int *x;
+  while (1) {
+      if (read + sizeof tmp > allocated) {
+          allocated *= 2;
+          val = realloc(val, allocated);
+      }
+      tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rdi + read);
+      if(errno != 0) {
+          val[read] = 0;
+          printf("mkdir HANDLER ERROR: %s\n",strerror(errno));
+          break;
+      }
+      memcpy(val + read, &tmp, sizeof tmp);
+      if (memchr(&tmp, 0, sizeof tmp) != NULL){
+          if(read == 0)
+            val[sizeof(tmp)] = '\0';
+          else
+            val[read] = '\0';
+          break;
+        }
+      read += sizeof tmp;
+  }
+  res = realpath(val,buffer);
+  buffer[strlen(buffer)-strlen(val)] = '\0';
+  
+  x = pathcmp( buffer, oneLine);
+  if(x[0] == 1)
+  {
+    if(x[3] == 0)
+    {
+      kill(sandb->child, SIGKILL);
+      errno = EACCES;
+      fprintf(stderr,"fend stopped (mkdir) because (execute) is not allowed: %s\n", strerror(errno));
     }
   }
 }
@@ -215,7 +582,7 @@ void openHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *one
       {
         kill(sandb->child, SIGKILL);
         errno = EACCES;
-        fprintf(stderr,"fend read not allowed: %s\n", strerror(errno));
+        fprintf(stderr,"fend stopped (open) because (read) is not allowed: %s\n", strerror(errno));
       }
     }
     if((regs->rsi & O_WRONLY) == O_WRONLY)
@@ -224,7 +591,7 @@ void openHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *one
       {
         kill(sandb->child, SIGKILL);
         errno = EACCES;
-        fprintf(stderr,"fend write not allowed: %s\n", strerror(errno));
+        fprintf(stderr,"fend stopped (open) because (write) is not allowed: %s\n", strerror(errno));
       }
     }
     if((regs->rsi & O_RDWR) == O_RDWR)
@@ -233,7 +600,7 @@ void openHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *one
       {
         kill(sandb->child, SIGKILL);
         errno = EACCES;
-        fprintf(stderr,"fend read and write not allowed: %s\n", strerror(errno));
+        fprintf(stderr,"fend stopped (open) because (read & write) are not allowed: %s\n", strerror(errno));
       }
     }
   }
@@ -241,7 +608,7 @@ void openHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *one
 }
 
 void execHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
-  //printf("execve call %llu %llu %llu %llu\n",regs->rax, regs->rdi, regs->rsi, regs->rdx);
+  
   char buffer[PATH_MAX + 1];
   char *res;
   char *val = malloc(4096);
@@ -279,10 +646,9 @@ void execHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *one
     {
       kill(sandb->child, SIGKILL);
       errno = EACCES;
-      fprintf(stderr,"fend execute not allowed: %s\n", strerror(errno));
+      fprintf(stderr,"fend stopped (execve) because (execute) is not allowed: %s\n", strerror(errno));
     }
   }
-  //printf("EXECVE: %s\n", buffer);
 }
 
 void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *oneLine){
@@ -303,7 +669,7 @@ void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *o
       tmp = ptrace(PTRACE_PEEKDATA, sandb->child, regs->rsi + read);
       if(errno != 0) {
           val[read] = 0;
-          printf("OPEN HANDLER ERROR: %s\n",strerror(errno));
+          printf("OPENAT HANDLER ERROR: %s\n",strerror(errno));
           break;
       }
       memcpy(val + read, &tmp, sizeof tmp);
@@ -327,7 +693,7 @@ void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *o
       {
         kill(sandb->child, SIGKILL);
         errno = EACCES;
-        fprintf(stderr,"fend read not allowed: %s\n", strerror(errno));
+        fprintf(stderr,"fend stopped (openat) because (read) is not allowed: %s\n", strerror(errno));
       }
     }
     if((regs->rdx & O_WRONLY) == O_WRONLY)
@@ -336,7 +702,7 @@ void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *o
       {
         kill(sandb->child, SIGKILL);
         errno = EACCES;
-        fprintf(stderr,"fend write not allowed: %s\n", strerror(errno));
+        fprintf(stderr,"fend stopped (openat) because (write) is not allowed: %s\n", strerror(errno));
       }
     }
     if((regs->rdx & O_RDWR) == O_RDWR)
@@ -345,19 +711,25 @@ void openatHandler(struct sandbox* sandb, struct user_regs_struct *regs, Line *o
       {
         kill(sandb->child,SIGKILL);
         errno = EACCES;
-        fprintf(stderr,"fend read and write not allowed: %s\n", strerror(errno));
+        fprintf(stderr,"fend stopped (openat) because (read & write) are not allowed: %s\n", strerror(errno));
       }
     }
   }
     //printf("OPENED: %s\n", buffer);
 }
 
+
 struct sandb_syscall sandb_syscalls[] = {
-  //{__NR_read,            readHandler},
+  {__NR_rmdir,           rmdirHandler},
   {__NR_mkdir,           mkdirHandler},
+  {__NR_chdir,           chdirHandler},
   {__NR_execve,          execHandler},
   {__NR_open,            openHandler},
   {__NR_openat,          openatHandler},
+  {__NR_access,          accessHandler},
+  {__NR_rename,          renameHandler},
+  {__NR_unlink,          unlinkHandler},
+  {__NR_link,            linkHandler},
 };
 
 
@@ -437,14 +809,13 @@ int main(int argc, char **argv) {
   struct sandbox sandb;
   Line *commands;
 
-  if((argc < 2) || (argc == 3) || (argc > 4)) {
+  if(argc < 2) 
+  {
     errx(EXIT_FAILURE, "[SANDBOX] Usage : %s [-c configuration_file] <command> [args]", argv[0]);
   }
   
-  if(argc == 4)
+  if(strcmp(argv[1],"-c") == 0)
   {
-    if(strcmp(argv[1],"-c") != 0)
-      errx(EXIT_FAILURE, "%s command not recognized. [SANDBOX] Usage : %s [-c configuration_file] <command> [args]", argv[1],argv[0]);
     commands = parseConfigFile(argv[2],commands);
     sandb_init(&sandb, argc-3, argv+3);
   }
@@ -458,8 +829,6 @@ int main(int argc, char **argv) {
     commands[0].permit[2] = 1;
     sandb_init(&sandb, argc-1, argv+1);
   }
-  
-
   
 
   for(;;) {
