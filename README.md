@@ -14,5 +14,7 @@ $ make
 
 ## To run :
 
-$ ./fend /sandboxed/process
+$ ./fend [-c configfile] < sandboxed process > [args]
 
+
+##If an offending process is found, the sandbox simply kills the process.
